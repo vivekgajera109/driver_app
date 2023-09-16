@@ -18,84 +18,110 @@ part 'map_screen_event.dart';
 part 'map_screen_state.dart';
 
 class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
-  // Constructor for MapScreenBloc
   MapScreenBloc() : super(const MapScreenState()) {
     _onInit();
   }
-
+// Initialize event handlers for various map screen events
   _onInit() async {
-    // Define event handlers
-    on<MapScreenStarted>(_onStarted);
-    on<MapScreenMapCreated>(_onMapCreated);
-    on<MapScreenOnSearchingStart>(_onSearchStart);
-    on<MapScreenOnSearchPlaceSelected>(_onSearchPlaceSelected);
-    on<MapScreenOnSearchingCancel>(_onSearchCancel);
+    on<MapScreenStarted>(_onStarted); // Handle MapScreenStarted event
+    on<MapScreenMapCreated>(_onMapCreated); // Handle MapScreenMapCreated event
+    on<MapScreenOnSearchingStart>(
+        _onSearchStart); // Handle MapScreenOnSearchingStart event
+    on<MapScreenOnSearchPlaceSelected>(
+        _onSearchPlaceSelected); // Handle MapScreenOnSearchPlaceSelected event
+    on<MapScreenOnSearchingCancel>(
+        _onSearchCancel); // Handle MapScreenOnSearchingCancel event
   }
 
+// Initialize location service
   final Location location = Location();
 
+// Handle MapScreenStarted event
   FutureOr<void> _onStarted(
       MapScreenStarted event, Emitter<MapScreenState> emit) async {
+    // Emit a new state with loading status
     emit(state.copyWith(
       status: () => MapScreenStatus.loading,
     ));
+
+    // Request location permission
     await Permission.locationWhenInUse.request();
+
+    // Check if location permission is granted
     if (await Permission.locationWhenInUse.status.isGranted) {
-      await _startUserLiveLocation(emit);
+      await _startUserLiveLocation(
+          emit); // Start receiving user's live location
     } else {
-      openAppSettings();
+      openAppSettings(); // Open app settings for location permission
+      // Emit a new state with no location permission status
       emit(state.copyWith(
         status: () => MapScreenStatus.noLocationPermission,
       ));
     }
   }
 
+// Handle MapScreenOnSearchPlaceSelected event
   FutureOr<void> _onSearchPlaceSelected(MapScreenOnSearchPlaceSelected event,
       Emitter<MapScreenState> emit) async {
-    emit(state.copyWith(searchStatus: () => LocationSearchStatus.selected));
+    emit(state.copyWith(
+        searchStatus: () =>
+            LocationSearchStatus.selected)); // Set search status to selected
 
-    final latlng = await gc.locationFromAddress(event.address);
+    final latlng = await gc
+        .locationFromAddress(event.address); // Get location from address
     if (latlng.isNotEmpty) {
-      final desMarker = await _addMarkerForDestination(
-          LatLng(latlng.first.latitude, latlng.first.longitude));
+      final desMarker =
+          await _addMarkerForDestination(// Add marker for destination
+              LatLng(latlng.first.latitude, latlng.first.longitude));
 
-      final markers = state.markers.toList();
-      markers.add(desMarker);
-      final polyLine = await _setPolyLines(
+      final markers = state.markers.toList(); // Get list of markers
+      markers.add(desMarker); // Add destination marker to the list
+      final polyLine = await _setPolyLines(// Set polyline for the route
           LatLng(latlng.first.latitude, latlng.first.longitude));
       emit(state.copyWith(
-          searchStatus: () => LocationSearchStatus.selected,
-          markers: markers.toSet,
-          polyline: () => {polyLine!},
-          desLocation: () =>
-              LatLng(latlng.first.latitude, latlng.first.longitude)));
+          searchStatus: () =>
+              LocationSearchStatus.selected, // Set search status to selected
+          markers: markers.toSet, // Update markers
+          polyline: () => {polyLine!}, // Set polyline
+          desLocation: () => LatLng(latlng.first.latitude,
+              latlng.first.longitude) // Set destination location
+          ));
     }
   }
 
+// Handle MapScreenOnSearchingStart event
   FutureOr<void> _onSearchStart(
       MapScreenOnSearchingStart event, Emitter<MapScreenState> emit) async {
+    // If search place is empty
     if (event.searchPlace.isEmpty) {
+      // Emit state with empty searched places and set search status to searching
       emit(state.copyWith(
         searchedPlaces: () => [],
         searchStatus: () => LocationSearchStatus.searching,
       ));
-      return;
+      return; // Return to exit function
     }
-    final places =
-        place.FlutterGooglePlacesSdk('AIzaSyBybh7pKrXboD9Ck8F87c717UFifO06SmU');
-    final result = await places.findAutocompletePredictions(event.searchPlace,
-        origin: place.LatLng(
-            lat: state.userLocation.latitude,
-            lng: state.userLocation.longitude));
 
+    final places = place.FlutterGooglePlacesSdk(
+        'AIzaSyBybh7pKrXboD9Ck8F87c717UFifO06SmU'); // Initialize Google Places SDK
+    final result = await places.findAutocompletePredictions(
+      event.searchPlace,
+      origin: place.LatLng(
+          lat: state.userLocation.latitude, lng: state.userLocation.longitude),
+    );
+
+    // Emit state with updated search status and list of search predictions
     emit(state.copyWith(
-        searchStatus: () => LocationSearchStatus.searching,
-        searchedPlaces: result.predictions.toList));
+      searchStatus: () => LocationSearchStatus.searching,
+      searchedPlaces: result.predictions.toList,
+    ));
   }
 
+// Handle MapScreenOnSearchingCancel event
   FutureOr<void> _onSearchCancel(
       MapScreenOnSearchingCancel event, Emitter<MapScreenState> emit) async {
     if (event.clearAll) {
+      // Clear polyline, markers, destination location, searched places, and set search status to clear
       emit(state.copyWith(
         polyline: () => {},
         markers: () => {},
@@ -104,6 +130,7 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
         searchStatus: () => LocationSearchStatus.clear,
       ));
     } else {
+      // Clear only searched places and set search status to clear
       emit(state.copyWith(
         searchedPlaces: () => [],
         searchStatus: () => LocationSearchStatus.clear,
@@ -111,6 +138,7 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
     }
   }
 
+// Start receiving user's live location
   _startUserLiveLocation(Emitter<MapScreenState> emit) async {
     location.changeSettings(
       interval: 10,
@@ -118,35 +146,49 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
     await emit.forEach(
       location.onLocationChanged,
       onData: (data) {
-        _locationEmitter(emit, data);
-        return state;
+        _locationEmitter(
+            emit, data); // Call _locationEmitter with location data
+        return state; // Return current state
       },
     );
   }
 
+// Handle the event when the map is created
   _onMapCreated(MapScreenMapCreated event, Emitter<MapScreenState> emit) async {
+    // Emit a new state with updated map controller
     emit(state.copyWith(
       mapController: () => event.mapController,
     ));
   }
 
+// Static utility function to get bytes from an asset
   static Future<Uint8List> _getBytesFromAsset(value) async {
+    // Load byte data from the specified asset path
     ByteData data = await rootBundle.load(value['path']);
+
+    // Create a codec and get the first frame
     Codec codec = await instantiateImageCodec(data.buffer.asUint8List(),
         targetWidth: value['width']);
     FrameInfo fi = await codec.getNextFrame();
+
+    // Convert image frame to byte data and return as Uint8List
     return (await fi.image.toByteData(format: ImageByteFormat.png))!
         .buffer
         .asUint8List();
   }
 
+// Add a marker for the user's location
   Future<Marker> _addMarkerForUser(LatLng latLng, double heading) async {
-    final markerIcon = BitmapDescriptor.fromBytes(
-        // await compute(
-        //   _getBytesFromAsset, {'path': "assets/markers/top.png", "width": 150}));
+    // Load marker icon bytes from asset if not already loaded
+    userMarkerBytes ??= await _getBytesFromAsset(
+        {'path': "assets/markers/top.png", "width": 120});
+
+    // Create marker icon from loaded bytes
+    final markerIcon = BitmapDescriptor.fromBytes(userMarkerBytes ??
         await _getBytesFromAsset(
             {'path': "assets/markers/top.png", "width": 120}));
 
+    // Return a new marker instance
     return Marker(
         rotation: heading + 90,
         anchor: const Offset(0.5, 0.5),
@@ -155,15 +197,18 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
         icon: markerIcon);
   }
 
-  Future<Marker> _addMarkerForDestination(
-    LatLng latLng,
-  ) async {
-    final markerIcon = BitmapDescriptor.fromBytes(
-        // await compute(
-        //   _getBytesFromAsset, {'path': "assets/markers/top.png", "width": 150}));
+  // Add a marker for the destination location
+  Future<Marker> _addMarkerForDestination(LatLng latLng) async {
+    // Load destination marker bytes from asset if not already loaded
+    destinationMarkerBytes ??= await _getBytesFromAsset(
+        {'path': "assets/markers/des.png", "width": 120});
+
+    // Create marker icon from loaded bytes
+    final markerIcon = BitmapDescriptor.fromBytes(destinationMarkerBytes ??
         await _getBytesFromAsset(
             {'path': "assets/markers/des.png", "width": 100}));
 
+    // Return a new marker instance
     return Marker(
         anchor: const Offset(0.5, 0.5),
         markerId: const MarkerId('destination'),
@@ -171,6 +216,7 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
         icon: markerIcon);
   }
 
+// Handle location data and emit state updates
   _locationEmitter(
       Emitter<MapScreenState> emit, LocationData currentLocation) async {
     // Add a marker for the user's location
@@ -179,6 +225,7 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
         currentLocation.heading ?? 0);
     final markers = state.markers.toList();
 
+    // Set up polyline and calculate total distance
     final polyline = await _setPolyLines(null);
     num totalDistance = 0;
     for (var i = 0; i < polylineCoordinates.length - 1; i++) {
@@ -189,6 +236,7 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
           polylineCoordinates[i + 1].longitude);
     }
 
+    // Add the user's marker and emit a new state
     markers.add(marker);
     emit(state.copyWith(
         status: () => MapScreenStatus.loaded,
@@ -199,24 +247,29 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
             currentLocation.latitude ?? 0, currentLocation.longitude ?? 0)));
   }
 
+// Initialize polyline points and coordinates list, and fetch route between coordinates
   PolylinePoints polylinePoints = PolylinePoints();
   List<LatLng> polylineCoordinates = [];
   Future<Polyline?> _setPolyLines(LatLng? des) async {
     if (state.desLocation == null && des == null) {
-      return null;
+      return null; // Return null if destination location is not available
     }
 
+    // Set up origin and destination points for polyline
     PointLatLng origin =
         PointLatLng(state.userLocation.latitude, state.userLocation.longitude);
     PointLatLng destination = PointLatLng(
         des?.latitude ?? state.desLocation!.latitude,
         des?.longitude ?? state.desLocation!.longitude);
+
+    // Fetch polyline result between coordinates
     PolylineResult result = await polylinePoints.getRouteBetweenCoordinates(
       'AIzaSyBybh7pKrXboD9Ck8F87c717UFifO06SmU',
       origin,
       destination,
-      // optimizeWaypoints: true,
     );
+
+    // Clear and update polyline coordinates list, and create a new Polyline instance
     polylineCoordinates.clear();
     polylineCoordinates
         .addAll(result.points.map((e) => LatLng(e.latitude, e.longitude)));
@@ -226,7 +279,7 @@ class MapScreenBloc extends Bloc<MapScreenEvent, MapScreenState> {
         color: Colors.black,
         points: polylineCoordinates);
 
-    return polyline;
+    return polyline; // Return the generated polyline
   }
 }
 
@@ -267,3 +320,6 @@ final mapStyle = [
     ]
   }
 ];
+
+Uint8List? destinationMarkerBytes;
+Uint8List? userMarkerBytes;
