@@ -16,6 +16,11 @@ class MapScreenView extends StatelessWidget {
             );
           }
           return GoogleMap(
+              onMapCreated: (controller) {
+                context
+                    .read<MapScreenBloc>()
+                    .add(MapScreenMapCreated(controller));
+              },
               markers: state.markers,
               initialCameraPosition:
                   CameraPosition(target: state.userLocation, zoom: 15));

@@ -8,3 +8,11 @@ class MapScreenEvent extends Equatable {
 }
 
 class MapScreenStarted extends MapScreenEvent {}
+
+class MapScreenStartUserLocation extends MapScreenEvent {}
+
+class MapScreenMapCreated extends MapScreenEvent {
+  final GoogleMapController mapController;
+
+  const MapScreenMapCreated(this.mapController);
+}
